@@ -408,6 +408,9 @@
                     <button class="btn" id="analyzeBtn" onclick="analyzeFile()" disabled>
                         <i class="fas fa-search"></i> Analyze
                     </button>
+                    <button class="btn" id="clearBtn" onclick="resetUI()">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
                 </div>
             </div>
 
@@ -481,98 +484,133 @@
         let isAnalyzing = false;
         let currentStep = '';
 
+        function resetUI() {
+            // Reset all UI elements
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('loadingSection').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('imagePreview').style.display = 'none';
+            document.getElementById('videoPreview').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
+            
+            // Clear preview sources
+            document.getElementById('imagePreview').src = '';
+            document.getElementById('videoPreview').src = '';
+            
+            // Reset result elements
+            document.querySelectorAll('.status-step').forEach(el => {
+                el.classList.remove('active', 'completed');
+            });
+            
+            // Clear file input
+            document.getElementById('fileInput').value = '';
+            selectedFile = null;
+            isAnalyzing = false;
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const uploadArea = document.getElementById('uploadArea');
             const fileInput = document.getElementById('fileInput');
             const analyzeBtn = document.getElementById('analyzeBtn');
-            const imagePreview = document.getElementById('imagePreview');
-            const videoPreview = document.getElementById('videoPreview');
-            const statusMessage = document.getElementById('statusMessage');
-            const statusSteps = document.getElementById('statusSteps');
 
-            // Check if model is loaded
+            // Reset UI on page load
+            resetUI();
             checkModelStatus();
+
+            // File input change handler
+            fileInput.addEventListener('change', async function(event) {
+                resetUI();  // Reset UI before handling new file
+                if (event.target.files && event.target.files.length > 0) {
+                    handleFiles(event.target.files);
+                }
+            });
 
             // Drag and drop handlers
             uploadArea.addEventListener('dragover', function(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 uploadArea.classList.add('dragover');
             });
 
             uploadArea.addEventListener('dragleave', function(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 uploadArea.classList.remove('dragover');
             });
 
-            uploadArea.addEventListener('drop', function(e) {
+            uploadArea.addEventListener('drop', async function(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 uploadArea.classList.remove('dragover');
-                handleFiles(e.dataTransfer.files);
+                resetUI();  // Reset UI before handling new file
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleFiles(e.dataTransfer.files);
+                }
             });
 
-            // Click to upload
-            fileInput.addEventListener('change', function() {
-                handleFiles(this.files);
+            // Clear button event handler
+            document.getElementById('clearBtn').addEventListener('click', function() {
+                resetUI();
             });
-
-            function checkModelStatus() {
-                fetch('/api/health')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (!data.model_loaded) {
-                            showError('Model is not loaded. Please try again later.');
-                            analyzeBtn.disabled = true;
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Health check failed:', error);
-                        showError('Could not connect to server.');
-                        analyzeBtn.disabled = true;
-                    });
-            }
-
-            function handleFiles(files) {
-                if (!files || files.length === 0) {
-                    showError('No file selected.');
-                    return;
-                }
-
-                const file = files[0];
-                const fileType = file.type;
-
-                // Validate file type
-                if (!fileType.startsWith('image/') && !fileType.startsWith('video/')) {
-                    showError('Please upload an image or video file.');
-                    return;
-                }
-
-                // Validate file size (50MB limit)
-                if (file.size > 50 * 1024 * 1024) {
-                    showError('File is too large. Maximum size is 50MB.');
-                    return;
-                }
-
-                selectedFile = file;
-                analyzeBtn.disabled = false;
-                hideError();
-
-                // Preview file
-                const reader = new FileReader();
-
-                if (fileType.startsWith('image/')) {
-                    reader.onload = function(e) {
-                        imagePreview.src = e.target.result;
-                        imagePreview.style.display = 'block';
-                        videoPreview.style.display = 'none';
-                    };
-                    reader.readAsDataURL(file);
-                } else if (fileType.startsWith('video/')) {
-                    videoPreview.src = URL.createObjectURL(file);
-                    videoPreview.style.display = 'block';
-                    imagePreview.style.display = 'none';
-                }
-            }
         });
+
+        async function checkModelStatus() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                if (!data.model_loaded) {
+                    showError('Model is not loaded. Please try again later.');
+                    document.getElementById('analyzeBtn').disabled = true;
+                }
+            } catch (error) {
+                console.error('Health check failed:', error);
+                showError('Could not connect to server.');
+                document.getElementById('analyzeBtn').disabled = true;
+            }
+        }
+
+        function handleFiles(files) {
+            if (!files || files.length === 0) {
+                showError('No file selected.');
+                return;
+            }
+
+            const file = files[0];
+            const fileType = file.type;
+
+            // Validate file type
+            if (!fileType.startsWith('image/') && !fileType.startsWith('video/')) {
+                showError('Please upload an image or video file.');
+                return;
+            }
+
+            // Validate file size (50MB limit)
+            if (file.size > 50 * 1024 * 1024) {
+                showError('File is too large. Maximum size is 50MB.');
+                return;
+            }
+
+            selectedFile = file;
+            document.getElementById('analyzeBtn').disabled = false;
+            hideError();
+
+            // Preview file
+            if (fileType.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imagePreview = document.getElementById('imagePreview');
+                    imagePreview.src = e.target.result;
+                    imagePreview.style.display = 'block';
+                    document.getElementById('videoPreview').style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            } else if (fileType.startsWith('video/')) {
+                const videoPreview = document.getElementById('videoPreview');
+                videoPreview.src = URL.createObjectURL(file);
+                videoPreview.style.display = 'block';
+                document.getElementById('imagePreview').style.display = 'none';
+            }
+        }
 
         function updateStatus(step, message) {
             // Reset all steps
@@ -603,61 +641,62 @@
             if (!selectedFile || isAnalyzing) return;
 
             isAnalyzing = true;
+            const analyzeBtn = document.getElementById('analyzeBtn');
             analyzeBtn.disabled = true;
-            showLoading();
-            hideError();
-            hideResults();
-
-            // Check file size
-            if (selectedFile.size > 50 * 1024 * 1024) { // 50MB limit
-                showError('File is too large. Maximum size is 50MB.');
-                hideLoading();
-                isAnalyzing = false;
-                analyzeBtn.disabled = false;
-                return;
-            }
 
             try {
-                // Start upload
-                updateStatus('upload', 'Uploading file...');
-                
                 const formData = new FormData();
                 formData.append('file', selectedFile);
 
+                // Show loading state
+                document.getElementById('loadingSection').style.display = 'block';
+                updateStatus('upload', 'Uploading file...');
+                
+                // Keep track of the file preview URL if it exists
+                const localPreviewUrl = selectedFile.type.startsWith('video/') ? 
+                    document.getElementById('videoPreview').src : 
+                    document.getElementById('imagePreview').src;
+
                 const response = await fetch('/api/detect', {
                     method: 'POST',
-                    body: formData,
-                    headers: {
-                        'Accept': 'application/json'
-                    }
+                    body: formData
                 });
 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
-                // Start processing
-                updateStatus('processing', 'Processing image...');
-                
+                updateStatus('processing', 'Processing file...');
                 const result = await response.json();
-                
-                // Start analysis
-                updateStatus('analyze', 'Analyzing results...');
-                
+
                 if (result.success) {
-                    // Small delay to show the analysis step
+                    updateStatus('analyze', 'Analyzing results...');
                     await new Promise(resolve => setTimeout(resolve, 500));
+                    // Update image/video preview with the served file if available
+                    if (result.file_url) {
+                        if (selectedFile.type.startsWith('video/')) {
+                            const videoPreview = document.getElementById('videoPreview');
+                            videoPreview.src = result.file_url;
+                            videoPreview.style.display = 'block';
+                            document.getElementById('imagePreview').style.display = 'none';
+                        } else {
+                            const imagePreview = document.getElementById('imagePreview');
+                            imagePreview.src = result.file_url;
+                            imagePreview.style.display = 'block';
+                            document.getElementById('videoPreview').style.display = 'none';
+                        }
+                    }
                     displayResults(result);
                 } else {
-                    showError(result.error || 'Analysis failed.');
+                    throw new Error(result.error || 'Analysis failed');
                 }
             } catch (error) {
                 console.error('Error:', error);
-                showError('Server error: ' + (error.message || 'Try again later.'));
+                showError(error.message || 'An error occurred during analysis');
             } finally {
-                hideLoading();
                 isAnalyzing = false;
                 analyzeBtn.disabled = false;
+                document.getElementById('loadingSection').style.display = 'none';
             }
         }
 
@@ -672,6 +711,7 @@
             const fakeProb = document.getElementById('fakeProb');
             const fileSize = document.getElementById('fileSize');
             const imageDims = document.getElementById('imageDims');
+            const resultsSection = document.getElementById('resultsSection');
 
             // Update result label and styling
             const isReal = result.label === 'Real';
@@ -695,34 +735,24 @@
 
             // Show results with animation
             resultsSection.style.display = 'block';
+            resultCard.style.opacity = '0';
+            resultCard.style.transform = 'translateY(20px)';
+            resultCard.style.transition = 'all 0.5s ease';
+            
             setTimeout(() => {
-                resultCard.style.opacity = '0';
-                resultCard.style.transform = 'translateY(20px)';
-                resultCard.style.transition = 'all 0.5s ease';
-                
-                setTimeout(() => {
-                    resultCard.style.opacity = '1';
-                    resultCard.style.transform = 'translateY(0)';
-                }, 100);
+                resultCard.style.opacity = '1';
+                resultCard.style.transform = 'translateY(0)';
             }, 100);
         }
 
-        function showLoading() {
-            loadingSection.style.display = 'block';
-            updateStatus('upload', 'Starting process...');
-        }
-
         function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
             errorMessage.textContent = message;
             errorMessage.style.display = 'block';
         }
 
         function hideError() {
-            errorMessage.style.display = 'none';
-        }
-
-        function hideResults() {
-            resultsSection.style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
         }
 
         function formatFileSize(bytes) {

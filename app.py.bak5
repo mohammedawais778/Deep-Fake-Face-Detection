@@ -58,7 +58,7 @@ class MemoryMonitor:
                 if hasattr(model_manager, 'model'):
                     model_manager.unload_model()  # Free up memory
             time.sleep(60)  # Check every minute
-
+            
 memory_monitor = MemoryMonitor()
 
 # Rate limiting
@@ -97,19 +97,6 @@ def rate_limit(f):
             abort(429, description="Too many requests")
         return f(*args, **kwargs)
     return decorated_function
-
-def cleanup_uploads():
-    """Clean up files in the uploads directory"""
-    try:
-        for filename in os.listdir(UPLOAD_FOLDER):
-            filepath = os.path.join(UPLOAD_FOLDER, filename)
-            try:
-                os.remove(filepath)
-                logger.info(f"Cleaned up old file: {filename}")
-            except Exception as e:
-                logger.warning(f"Could not remove file {filename}: {str(e)}")
-    except Exception as e:
-        logger.warning(f"Error cleaning upload directory: {str(e)}")
 
 # Model management with caching and versioning
 class ModelManager:
@@ -395,28 +382,4 @@ def detect_file():
             'details': str(e)
         }), 500
 
-if __name__ == '__main__':
-    # Create upload folder if it doesn't exist
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    
-    # Clean any existing files in the upload folder
-    cleanup_uploads()
-    
-    # Start memory monitoring
-    memory_monitor.start_monitoring()
-    
-    def signal_handler(signum, frame):
-        logger.info("Received signal to shut down")
-        cleanup_uploads()
-        logger.info("Cleanup completed, shutting down...")
-        sys.exit(0)
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    try:
-        app.run(host='0.0.0.0', port=5000, debug=True)
-    except Exception as e:
-        logger.error(f"Error running app: {str(e)}")
-        cleanup_uploads()
-        sys.exit(1)
+def cleanup_uploads():
