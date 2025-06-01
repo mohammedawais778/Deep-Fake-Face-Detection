@@ -135,5 +135,5 @@ TensorFlow, Keras, OpenCV, Flask
 
 ## Author
 Mohammed Awais
-Deep Learning & Full Stack Developer
+Data Science,AI,ML
 
